@@ -444,6 +444,7 @@ cat /tmp/step3-detail.json
   - /bedrock_summarize, /bedrock_detailの2つのエンドポイントを作って実行確認
   - bedrock runtimeをで実行する
 - Step5: データ分析エージェントを作る
+  - PythonのStrands Agentsを使って、データ分析エージェントを作る
 - Step6: フロントエンド画面からエージェントを操作できるようにする
 
 ## まとめ

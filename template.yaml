@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Step 1 and Step 2 - AWS AppConfig, S3, Glue, and Athena demo
+Description: Step 1, Step 2, and Step 3 - AWS AppConfig, S3, Glue, Athena, and Bedrock-style Lambda demo
 
 Resources:
   AppConfigApplication:
@@ -32,11 +32,28 @@ Resources:
       Description: Initial hosted configuration for the demo Lambda
       ContentType: application/json
       Content: |
-        {
-          "message": "Hello from AWS AppConfig",
-          "feature_enabled": true,
-          "source": "appconfig"
-        }
+        [
+          {
+            "model_id": "sales_performance",
+            "display_name": "売上・業績分析モデル",
+            "description": "店舗別の売上合計、商品カテゴリ別の売れ行き、月次・日次の売上トレンド（いくら売れたか）を分析する文脈。売上金額（amount）の集計を伴う質問はすべてこのモデルが担当する。",
+            "target_table": "sales_summary",
+            "sample_queries": [
+              "先月の店舗ごとの売上を教えて",
+              "カテゴリ別の売上ランキングが知りたい"
+            ]
+          },
+          {
+            "model_id": "customer_demographics",
+            "display_name": "顧客属性・会員分析モデル",
+            "description": "会員の年齢層、性別、会員ランクの分布、アクティブユーザー数（何人いるか）を分析する文脈。顧客の『人数』や『属性の割合』に関する質問を担当する。※売上金額は含まない。",
+            "target_table": "customer_master",
+            "sample_queries": [
+              "現在のアクティブ会員の男女比は？",
+              "20代の会員は何人登録されている？"
+            ]
+          }
+        ]
 
   AppConfigDeploymentStrategy:
     Type: AWS::AppConfig::DeploymentStrategy
@@ -182,6 +199,21 @@ Resources:
           ATHENA_OUTPUT_S3_URI: !Sub s3://${DataBucket}/athena-results
           ATHENA_WORKGROUP: primary
 
+  Step3BedrockFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.step3_bedrock.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      Role: !GetAtt AppConfigLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          AWS_APPCONFIG_APPLICATION_ID: !Ref AppConfigApplication
+          AWS_APPCONFIG_ENVIRONMENT_ID: !Ref AppConfigEnvironment
+          AWS_APPCONFIG_CONFIGURATION_PROFILE_ID: !Ref AppConfigConfigurationProfile
+          AWS_APPCONFIG_EXTENSION_HTTP_PORT: "2772"
+
 Outputs:
   AppConfigReaderFunctionName:
     Value: !Ref AppConfigReaderFunction
@@ -197,3 +229,5 @@ Outputs:
     Value: !Ref Step2DataPreparationFunction
   Step2AthenaQueryFunctionName:
     Value: !Ref Step2AthenaQueryFunction
+  Step3BedrockFunctionName:
+    Value: !Ref Step3BedrockFunction

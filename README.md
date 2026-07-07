@@ -143,6 +143,13 @@ Step3では、データ分析エージェントを作ります。データ分析
 
 https://aws.amazon.com/jp/systems-manager/pricing/
 
+## Lambda の依存関係管理
+
+Lambda の依存関係は、必ずリポジトリ内の requirements.txt もしくは pyproject.toml に宣言してください。SAM の `sam build` / `sam deploy` 実行時に依存関係が自動で解決・パッケージ化される前提です。
+
+- 追加するライブラリは、ローカル環境へ個別に `pip install` せず、リポジトリに反映してください。
+- 依存関係の変更は、すぐにコミットして以後のデプロイで反映できるようにしてください。
+
 ## ハンズオン
 
 今回はAppConfigを使った小さいLambdaを作ったあと、簡単なデータ分析エージェントを作ります。
@@ -313,6 +320,31 @@ cat /tmp/step2-athena.json
 Step2のハンズオンでは、AppConfig を使って設定を外だしし、Lambda から安全に取得する流れを実装しました。次のステップでは、この構成をデータ分析基盤やエージェントへ広げて、実運用に近い体験を作っていきます。
 
 この流れを押さえておくと、次に Step3 でデータ分析エージェントを追加しやすくなります。
+
+## Step3: Bedrock 用 Lambda を作る
+
+Step3 では、Step2 で作成した Lambda の処理を別名で複製したうえで、その情報を Bedrock 用 Lambda へ渡して要約・検索可能な形に整えます。ここではまず、FastAPI ベースの Lambda を追加して、次のエンドポイントを用意します。
+
+- /summarize
+  - リクエストボディに `text` を渡すと、要約結果を返します。
+- /detail
+  - AppConfig から README に書かれたスキーマを取り出し、検索可能なデータ一覧として返します。
+
+実装イメージは次のとおりです。
+
+```bash
+aws lambda invoke \
+  --function-name <Step3BedrockFunctionName> \
+  --payload '{"path":"/summarize","httpMethod":"POST","body":"{\"text\":\"Sales data includes customers and orders.\"}"}' \
+  /tmp/step3-summarize.json
+```
+
+```bash
+aws lambda invoke \
+  --function-name <Step3BedrockFunctionName> \
+  --payload '{"path":"/detail","httpMethod":"GET"}' \
+  /tmp/step3-detail.json
+```
 
 目次
 - Step1: AWS AppConfigとLambdaの連携

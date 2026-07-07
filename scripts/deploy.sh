@@ -10,6 +10,7 @@ if [[ -n "${AWS_PROFILE:-}" ]]; then
 fi
 
 echo "Building SAM application..."
+echo "Lambda dependencies are resolved from requirements.txt during sam build."
 sam build
 
 echo "Deploying stack '$STACK_NAME' to region '$AWS_REGION'..."

@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Step 1 - AWS AppConfig and Lambda integration demo
+
+Resources:
+  AppConfigApplication:
+    Type: AWS::AppConfig::Application
+    Properties:
+      Name: appconfig-demo-app
+      Description: Demo application for AppConfig integration
+
+  AppConfigEnvironment:
+    Type: AWS::AppConfig::Environment
+    Properties:
+      ApplicationId: !Ref AppConfigApplication
+      Name: dev
+      Description: Development environment for AppConfig demo
+
+  AppConfigConfigurationProfile:
+    Type: AWS::AppConfig::ConfigurationProfile
+    Properties:
+      ApplicationId: !Ref AppConfigApplication
+      Name: lambda-settings
+      LocationUri: hosted
+      Type: AWS.Freeform
+
+  AppConfigHostedConfigurationVersion:
+    Type: AWS::AppConfig::HostedConfigurationVersion
+    Properties:
+      ApplicationId: !Ref AppConfigApplication
+      ConfigurationProfileId: !Ref AppConfigConfigurationProfile
+      Description: Initial hosted configuration for the demo Lambda
+      ContentType: application/json
+      Content: |
+        {
+          "message": "Hello from AWS AppConfig",
+          "feature_enabled": true,
+          "source": "appconfig"
+        }
+
+  AppConfigDeploymentStrategy:
+    Type: AWS::AppConfig::DeploymentStrategy
+    Properties:
+      Name: appconfig-demo-strategy
+      DeploymentDurationInMinutes: 0
+      FinalBakeTimeInMinutes: 0
+      GrowthFactor: 100
+      ReplicateTo: NONE
+      Description: Deploy configuration immediately for the demo
+
+  AppConfigDeployment:
+    Type: AWS::AppConfig::Deployment
+    Properties:
+      ApplicationId: !Ref AppConfigApplication
+      EnvironmentId: !Ref AppConfigEnvironment
+      ConfigurationProfileId: !Ref AppConfigConfigurationProfile
+      ConfigurationVersion: !GetAtt AppConfigHostedConfigurationVersion.VersionNumber
+      DeploymentStrategyId: !Ref AppConfigDeploymentStrategy
+      Description: Deploy the initial hosted configuration
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AppConfigDataAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - appconfig:StartConfigurationSession
+                  - appconfig:GetLatestConfiguration
+                  - appconfigdata:StartConfigurationSession
+                  - appconfigdata:GetLatestConfiguration
+                Resource: '*'
+
+  AppConfigReaderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.app.lambda_handler
+      AutoPublishAlias: live
+      Runtime: python3.11
+      Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          AWS_APPCONFIG_APPLICATION_ID: !Ref AppConfigApplication
+          AWS_APPCONFIG_ENVIRONMENT_ID: !Ref AppConfigEnvironment
+          AWS_APPCONFIG_CONFIGURATION_PROFILE_ID: !Ref AppConfigConfigurationProfile
+          AWS_APPCONFIG_EXTENSION_HTTP_PORT: "2772"
+
+Outputs:
+  AppConfigReaderFunctionName:
+    Value: !Ref AppConfigReaderFunction
+  AppConfigApplicationId:
+    Value: !Ref AppConfigApplication
+  AppConfigEnvironmentId:
+    Value: !Ref AppConfigEnvironment
+  AppConfigConfigurationProfileId:
+    Value: !Ref AppConfigConfigurationProfile

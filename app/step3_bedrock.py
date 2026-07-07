@@ -1,45 +1,14 @@
 import json
 import os
-import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import boto3
 from fastapi import FastAPI
 from mangum import Mangum
 
+from app.step4_bedrock import build_detail_payload, summarize_text
+
 app = FastAPI(title="Step3 Bedrock API")
-
-
-def summarize_text(text: str) -> str:
-    cleaned = " ".join(text.split())
-    if not cleaned:
-        return ""
-
-    first_sentence = re.split(r"(?<=[.!?])\s+", cleaned)[0]
-    words = first_sentence.split()
-    if len(words) > 10:
-        return " ".join(words[:10])
-    return first_sentence
-
-
-def build_detail_payload(schema: List[Dict[str, Any]] | Dict[str, Any]) -> Dict[str, Any]:
-    if isinstance(schema, dict) and "searchable_data" in schema:
-        items = schema.get("searchable_data", [])
-    else:
-        items = schema
-
-    searchable_data = []
-    for item in items:
-        if isinstance(item, dict):
-            searchable_data.append(
-                {
-                    "model_id": item.get("model_id"),
-                    "target_table": item.get("target_table"),
-                    "sample_queries": item.get("sample_queries", []),
-                    "description": item.get("description"),
-                }
-            )
-    return {"searchable_data": searchable_data}
 
 
 def _get_configuration_from_appconfig_data_api() -> Optional[Dict[str, Any]]:

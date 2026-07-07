@@ -1,143 +1,149 @@
-# AWS CLI インストールと SSO ログイン手順 (Linux環境)
+ # AWS AppConfigを試してみる
 
-このガイドでは、Linux環境でAWS CLIをインストールし、AWS SSOを使用してログインするまでの手順を説明します。
+## 利用技術
 
-## 前提条件
+バックエンド
 
-- Linux環境（Ubuntu、CentOS、Amazon Linux等）
-- インターネット接続
-- 管理者権限（sudoが使用可能）
-- AWS SSO が組織で設定済み
-- Python 3.12.1
+- 言語: Python3.11
+- ビルドツール: AWS SAM
+- ビルドサービス: AWS CodeBuild
+- IaC: CloudFormation
+- AWS Lambda Exetension: AppConfig Extension
 
-## AWS CLI のインストール
+## スキーマ
 
-### 公式インストーラーを使用（推奨）
-
-最新版のAWS CLI v2を公式インストーラーでインストールします。
-
-```bash
-# 1. インストーラーをダウンロード
-curl "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "awscliv2.zip"
-
-# 2. unzipがインストールされていない場合はインストール
-sudo apt update && sudo apt install unzip -y  # Ubuntu/Debian系
-# または
-sudo yum install unzip -y                     # CentOS/RHEL系
-
-# 3. ダウンロードしたファイルを展開
-unzip awscliv2.zip
-
-# 4. インストール実行
-sudo ./aws/install
-
-# 5. インストール確認
-aws --version
-
-# ダウンロードしたzipファイルと展開したディレクトリを削除してクリーンアップします。
-rm  "awscliv2.zip"
-
-# 解凍したディレクトリを削除
-rm -rf aws
-```
-
-## AWS SSO の設定とログイン
-
-### 1. AWS SSO の設定
-
-AWS SSOを使用するための初期設定を行います。
-
-```bash
-aws configure sso
-```
-
-設定時に以下の情報の入力が求められます：
-
-- **SSO start URL**: 組織のSSO開始URL（例：`https://my-company.awsapps.com/start`）
-- **SSO Region**: SSOが設定されているリージョン（例：`us-east-1`）
-- **アカウント選択**: 利用可能なAWSアカウントから選択
-- **ロール選択**: 選択したアカウントで利用可能なロールから選択
-- **CLI default client Region**: デフォルトのAWSリージョン（例：`ap-northeast-1`）
-- **CLI default output format**: 出力形式（`json`、`text`、`table`のいずれか）
-- **CLI profile name**: プロファイル名（`default`とします。）
-
-### 2. AWS SSO ログイン
-
-設定完了後、以下のコマンドでログインを実行します。
-
-```bash
-aws sso login
-```
-
-ログイン時の流れ：
-1. コマンド実行後、ブラウザが自動的に開きます
-2. AWS SSOのログインページが表示されます
-3. 組織のIDプロバイダー（例：Active Directory、Okta等）でログイン
-4. 認証が成功すると、ターミナルに成功メッセージが表示されます
-
-### 3. ログイン状態の確認
-
-認証情報を確認します。
-
-```bash
-aws sts get-caller-identity
-```
-
-正常にログインできている場合、以下のような情報が表示されます：
+スキーマはLookerのLookMLを参考に作成しています。LookerのLookMLは、データ分析のためのモデルを定義するための言語です。LookMLは独自の構文でデータ分析のためのモデルを定義できますが、このアプリではLookMLの構文を参考にして、JSON形式でデータ分析のためのモデルを定義できるようにしています。モデルの定義方法は以下のとおりです。
 
 ```json
-{
-    "UserId": "AROAXXXXXXXXXXXXXX:username@company.com",
-    "Account": "123456789012",
-    "Arn": "arn:aws:sts::123456789012:assumed-role/RoleName/username@company.com"
-}
+[
+  {
+    "model_id": "sales_performance",
+    "display_name": "売上・業績分析モデル",
+    "description": "店舗別の売上合計、商品カテゴリ別の売れ行き、月次・日次の売上トレンド（いくら売れたか）を分析する文脈。売上金額（amount）の集計を伴う質問はすべてこのモデルが担当する。",
+    "target_table": "sales_summary",
+    "sample_queries": [
+      "先月の店舗ごとの売上を教えて",
+      "カテゴリ別の売上ランキングが知りたい"
+    ]
+  },
+  {
+    "model_id": "customer_demographics",
+    "display_name": "顧客属性・会員分析モデル",
+    "description": "会員の年齢層、性別、会員ランクの分布、アクティブユーザー数（何人いるか）を分析する文脈。顧客の『人数』や『属性の割合』に関する質問を担当する。※売上金額は含まない。",
+    "target_table": "customer_master",
+    "sample_queries": [
+      "現在のアクティブ会員の男女比は？",
+      "20代の会員は何人登録されている？"
+    ]
+  }
+]
 ```
 
-## トラブルシューティング
+このスキーマを使って参照するデータはAWS Glue DataCatalogに登録されているテーブルを参照します。データ分析エージェントは、スキーマに定義されたモデルを使ってデータ分析のための質問に回答できます。スキーマに定義されたモデルは、データ分析エージェントがどのテーブルを参照して、どのような質問に回答できるかを決定します。
 
-### よくある問題と解決方法
+これはLookerの会話分析エージェントから着想を得ています。Lookerの会話分析エージェントはLookMLで定義されたモデルを使って、データ分析のための質問に回答できます。
 
-#### 1. ブラウザが開かない場合
+## 認証認可
 
-```bash
-# 手動でブラウザを開く場合のURL確認
-aws sso login --no-browser
-```
+AWS IAMの認証認可を使って、データ分析エージェントのアクセス制御を行います。データ分析エージェントは、AWS IAMの認証認可を使って、データ分析のための質問に回答できます。データはAmazon Athenaを使ってクエリを実行して取得します。データ分析エージェントは、AWS IAMの認証認可を使ってAmazon Athenaのクエリを実行できます。
 
-表示されたURLを手動でブラウザで開いてください。
+将来的にはAWS Lake Formation (LF-Tags) の活用やAmazon Verified Permissionsの活用も検討していますが、今回はAWS IAMの認証認可を使って、データ分析エージェントのアクセス制御を行います。
 
-#### 2. セッションが期限切れの場合
+## アプリの仕様
 
-```bash
-# 再ログイン
-aws sso login
-```
+3つのStepを踏んで、AWS AppConfigを使ったアプリケーションの設定管理とデータ分析エージェントの作成を行います。
 
-#### 4. プロキシ環境での設定
+Step1では、AWS AppConfigとLambdaを連携させて、アプリケーションの設定を管理する仕組みを作ります。
+Step2では、データ分析の基盤を作ります。データ分析の基盤はデータを収集・保存・分析するための仕組みです。
+Step3では、データ分析エージェントを作ります。データ分析エージェントは、データ分析の基盤を使って、データを分析するための仕組みです。
 
-プロキシ環境の場合、以下の環境変数を設定してください：
+データ分析エージェントをAWS AppConfigで管理することができることを確認することがこのアプリのゴールです。
 
-```bash
-export HTTP_PROXY=http://proxy.company.com:8080
-export HTTPS_PROXY=http://proxy.company.com:8080
-export NO_PROXY=localhost,127.0.0.1,.company.com
-```
+### Step1: AWS AppConfigとLambdaの連携
 
-## セキュリティのベストプラクティス
+まずはじめに、AWS AppConfigとLambdaを連携させて、アプリケーションの設定を管理する仕組みを作ります。
+利用サービスは以下のとおりです。
 
-1. **定期的な認証情報の更新**: SSOセッションには有効期限があります。定期的に再ログインを行ってください。
+- AWS AppConfig
+- AWS Lambda
 
-2. **最小権限の原則**: 必要最小限の権限を持つロールを使用してください。
+このステップのゴールはAWS AppConfigを使ってLambdaの設定を管理することができることです。
 
-3. **プロファイルの分離**: 本番環境と開発環境で異なるプロファイルを使用してください。
+### Step2: データ分析の基盤
 
-4. **ログアウト**: 作業終了時は適切にログアウトしてください：
-   ```bash
-   aws sso logout --profile <プロファイル名>
-   ```
+次にデータ分析の基盤を作ります。データ分析の基盤はデータを収集・保存・分析するための仕組みです。
+このリポジトリではサンプルデータでデータカタログを作成し、分析するための基盤を構築します。
+利用サービスは以下のとおりです。
 
-## 参考リンク
+- AWS Glue DataCatalog
+- Amazon Athena
+- Amazon S3
+- AWS Lambda
 
-- [AWS CLI ユーザーガイド](https://docs.aws.amazon.com/cli/latest/userguide/)
-- [AWS SSO ユーザーガイド](https://docs.aws.amazon.com/singlesignon/latest/userguide/)
-- [AWS CLI インストールガイド](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+このステップのゴールはAWS Lambdaを使ってクエリ実行ができることが確認することです。
+
+### Step3: データ分析エージェントを作る
+
+次にデータ基盤を探索するデータ分析エージェントを作ります。データ分析エージェントは、データ分析の基盤を使って、データを分析するための仕組みです。利用サービスは以下のとおりです。
+
+- AWS AppConfig
+- AWS Lambda
+- AWS Glue DataCatalog
+- Amazon Athena
+- Amazon S3
+- Amazon Bedrock
+
+このステップのゴールはAWS AppConfigを使ってデータ分析エージェントの設定を管理できることを確認することです。
+
+### Step4: データ分析エージェントを触ることができる画面を作る
+
+最後にフロントエンドの画面を作成して、データ分析エージェントを触ることができるようにします。利用サービスは以下のとおりです。
+
+- AWS AppConfig
+- AWS Lambda
+- AWS Amplify
+- AWS Glue DataCatalog
+- Amazon Athena
+- Amazon S3
+- Amazon Bedrock
+
+## ブログ
+
+以下、このリポジトリの内容をブログにまとめています。
+
+## はじめに
+
+## どうしてAppConfigなのか
+
+実際のところ、アプリケーションの設定をキャッシュしたい！そんなときは相乗りしているキャッシュサービスやパラメーターストアをを使ってしまいそうになります。
+
+しかし、この実装をしてしまうといくつかの問題が発生します。
+- データキャッシュの区別がつかない
+- パラメーターを更新したらアプリも更新する必要がある
+
+順番に見ていきましょう。
+
+## データキャッシュの区別がつかない
+
+## パラメーターを更新したらアプリも更新する必要がある
+
+## 課金要素
+
+https://aws.amazon.com/jp/systems-manager/pricing/
+
+## ハンズオン
+
+今回はAppConfigを使った小さいLambdaを作ったあと、簡単なデータ分析エージェントを作ります。
+おおまかな手順としては以下のとおりです。
+
+- AppConfigの作成
+- Lambdaの作成
+- AppConfig+Lambdaの動作確認
+- 分析エージェントの土台構築
+- 分析エージェントの設定をAppConfigで変えてみる動作確認
+
+## まとめ
+
+## 参考
+
+## おわり

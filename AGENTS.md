@@ -1,3 +1,15 @@
+## 利用技術
+
+バックエンド
+
+- 言語: Python3.11
+- ビルドツール: AWS SAM
+- IaC: CloudFormation
+- AWS Lambda Exetension: AppConfig Extension, AWS Lambda Web Adapter
+- パッケージ管理: uv
+- フレームワーク: FastAPI
+- API仕様: OpenAPI3.0
+
 ## AWS CLIの操作
 
 AWS CLIの操作は、AWS CLIのバージョン2を使って行います。基本的にはインストールされているはずですが、最初にインストールされていることを確認してください。なお、CLIのプロファイルは`default`です。
@@ -23,6 +35,20 @@ aws sso login --profile default
 - このリポジトリはアプリを更新する際に、Lambdaのコードを更新する必要があります。パブリックレジストリのパッケージをローカルにインストールすることはやめてください。リポジトリにコミットしてしまう危険性があります。
 - Lambda の依存関係は、必ずリポジトリ内の requirements.txt もしくは pyproject.toml に宣言してください。デプロイ時の `sam build` で自動的に依存関係を解決・パッケージ化する構成を前提とします。
 - 追加した依存は、ローカルのグローバル環境へ個別に `pip install` するのではなく、リポジトリに反映して SAM デプロイ時に取り込むようにしてください。
+
+## dockerfileの取り扱い
+
+- ホストOSのアーキテクチャを確認してから実行してください
+  - 確認方法: `uname -m`
+  - Mac M1/M2 の場合は、`--platform linux/amd64` オプションをつけて実行してください
+
+## コマンド実行時の注意点
+
+- データ取得系のコマンドは出力サイズが長いとShiftを入力しないと次に進まない場合があります。Shiftを入力すると次に進めます。qで終了できます。
+
+## コマンドTips
+
+- pytest -qでテスト経過を省略して表示できます
 
 ## ハンズオンを書くときの注意点
 

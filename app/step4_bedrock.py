@@ -1,13 +1,24 @@
 import json
 import os
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import boto3
 from fastapi import FastAPI
-from mangum import Mangum
+from fastapi.responses import FileResponse
 
 app = FastAPI(title="Step4 Bedrock API")
+
+
+@app.get('/openapi.json')
+async def openapi_json() -> Dict[str, Any]:
+    return app.openapi()
+
+
+@app.get('/docs', include_in_schema=False)
+async def docs_page() -> FileResponse:
+    return FileResponse(Path(__file__).resolve().parent.parent / 'templates' / 'swagger.html')
 
 
 def summarize_text(text: str) -> str:
@@ -46,7 +57,7 @@ def _get_configuration_from_appconfig_data_api() -> Optional[Dict[str, Any]]:
     application_id = os.getenv("AWS_APPCONFIG_APPLICATION_ID")
     environment_id = os.getenv("AWS_APPCONFIG_ENVIRONMENT_ID")
     configuration_profile_id = os.getenv("AWS_APPCONFIG_CONFIGURATION_PROFILE_ID")
-    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "ap-northeast-1"
+    region = os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "ap-northeast-1"
 
     if not all([application_id, environment_id, configuration_profile_id]):
         return None
@@ -131,7 +142,7 @@ def invoke_bedrock_summarization(text: str, model_id: Optional[str] = None) -> s
         return ""
 
     request_body = build_bedrock_request_body(model_id, text)
-    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "ap-northeast-1"
+    region = os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "ap-northeast-1"
 
     try:
         client = boto3.client("bedrock-runtime", region_name=region)
@@ -183,8 +194,18 @@ async def bedrock_detail() -> Dict[str, Any]:
     return payload
 
 
-handler = Mangum(app, lifespan="off")
+def run_server() -> None:
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8080)
+
+
+if __name__ == "__main__":
+    run_server()
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    return handler(event, context)
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"message": "This function is intended to run behind AWS Lambda Web Adapter"}),
+    }

@@ -1,0 +1,371 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Step 1, Step 2, Step 3, and Step 4 - AWS AppConfig, S3, Glue, Athena,
+  and Bedrock-style Lambda demo
+Parameters:
+  BedrockModelId:
+    Type: String
+    Default: anthropic.claude-3-haiku-20240307-v1:0
+    Description: Bedrock model identifier used by Step4
+Resources:
+  AppConfigApplication:
+    Type: AWS::AppConfig::Application
+    Properties:
+      Name: appconfig-demo-app
+      Description: Demo application for AppConfig integration
+    Metadata:
+      SamResourceId: AppConfigApplication
+  AppConfigEnvironment:
+    Type: AWS::AppConfig::Environment
+    Properties:
+      ApplicationId:
+        Ref: AppConfigApplication
+      Name: dev
+      Description: Development environment for AppConfig demo
+    Metadata:
+      SamResourceId: AppConfigEnvironment
+  AppConfigConfigurationProfile:
+    Type: AWS::AppConfig::ConfigurationProfile
+    Properties:
+      ApplicationId:
+        Ref: AppConfigApplication
+      Name: lambda-settings
+      LocationUri: hosted
+      Type: AWS.Freeform
+    Metadata:
+      SamResourceId: AppConfigConfigurationProfile
+  AppConfigHostedConfigurationVersion:
+    Type: AWS::AppConfig::HostedConfigurationVersion
+    Properties:
+      ApplicationId:
+        Ref: AppConfigApplication
+      ConfigurationProfileId:
+        Ref: AppConfigConfigurationProfile
+      Description: Initial hosted configuration for the demo Lambda
+      ContentType: application/json
+      Content: "[\n  {\n    \"model_id\": \"sales_performance\",\n    \"display_name\"\
+        : \"\u58F2\u4E0A\u30FB\u696D\u7E3E\u5206\u6790\u30E2\u30C7\u30EB\",\n    \"\
+        description\": \"\u5E97\u8217\u5225\u306E\u58F2\u4E0A\u5408\u8A08\u3001\u5546\
+        \u54C1\u30AB\u30C6\u30B4\u30EA\u5225\u306E\u58F2\u308C\u884C\u304D\u3001\u6708\
+        \u6B21\u30FB\u65E5\u6B21\u306E\u58F2\u4E0A\u30C8\u30EC\u30F3\u30C9\uFF08\u3044\
+        \u304F\u3089\u58F2\u308C\u305F\u304B\uFF09\u3092\u5206\u6790\u3059\u308B\u6587\
+        \u8108\u3002\u58F2\u4E0A\u91D1\u984D\uFF08amount\uFF09\u306E\u96C6\u8A08\u3092\
+        \u4F34\u3046\u8CEA\u554F\u306F\u3059\u3079\u3066\u3053\u306E\u30E2\u30C7\u30EB\
+        \u304C\u62C5\u5F53\u3059\u308B\u3002\",\n    \"target_table\": \"sales_summary\"\
+        ,\n    \"sample_queries\": [\n      \"\u5148\u6708\u306E\u5E97\u8217\u3054\
+        \u3068\u306E\u58F2\u4E0A\u3092\u6559\u3048\u3066\",\n      \"\u30AB\u30C6\u30B4\
+        \u30EA\u5225\u306E\u58F2\u4E0A\u30E9\u30F3\u30AD\u30F3\u30B0\u304C\u77E5\u308A\
+        \u305F\u3044\"\n    ]\n  },\n  {\n    \"model_id\": \"customer_demographics\"\
+        ,\n    \"display_name\": \"\u9867\u5BA2\u5C5E\u6027\u30FB\u4F1A\u54E1\u5206\
+        \u6790\u30E2\u30C7\u30EB\",\n    \"description\": \"\u4F1A\u54E1\u306E\u5E74\
+        \u9F62\u5C64\u3001\u6027\u5225\u3001\u4F1A\u54E1\u30E9\u30F3\u30AF\u306E\u5206\
+        \u5E03\u3001\u30A2\u30AF\u30C6\u30A3\u30D6\u30E6\u30FC\u30B6\u30FC\u6570\uFF08\
+        \u4F55\u4EBA\u3044\u308B\u304B\uFF09\u3092\u5206\u6790\u3059\u308B\u6587\u8108\
+        \u3002\u9867\u5BA2\u306E\u300E\u4EBA\u6570\u300F\u3084\u300E\u5C5E\u6027\u306E\
+        \u5272\u5408\u300F\u306B\u95A2\u3059\u308B\u8CEA\u554F\u3092\u62C5\u5F53\u3059\
+        \u308B\u3002\u203B\u58F2\u4E0A\u91D1\u984D\u306F\u542B\u307E\u306A\u3044\u3002\
+        \",\n    \"target_table\": \"customer_master\",\n    \"sample_queries\": [\n\
+        \      \"\u73FE\u5728\u306E\u30A2\u30AF\u30C6\u30A3\u30D6\u4F1A\u54E1\u306E\
+        \u7537\u5973\u6BD4\u306F\uFF1F\",\n      \"20\u4EE3\u306E\u4F1A\u54E1\u306F\
+        \u4F55\u4EBA\u767B\u9332\u3055\u308C\u3066\u3044\u308B\uFF1F\"\n    ]\n  }\n\
+        ]\n"
+    Metadata:
+      SamResourceId: AppConfigHostedConfigurationVersion
+  AppConfigDeploymentStrategy:
+    Type: AWS::AppConfig::DeploymentStrategy
+    Properties:
+      Name: appconfig-demo-strategy
+      DeploymentDurationInMinutes: 0
+      FinalBakeTimeInMinutes: 0
+      GrowthFactor: 100
+      ReplicateTo: NONE
+      Description: Deploy configuration immediately for the demo
+    Metadata:
+      SamResourceId: AppConfigDeploymentStrategy
+  AppConfigDeployment:
+    Type: AWS::AppConfig::Deployment
+    Properties:
+      ApplicationId:
+        Ref: AppConfigApplication
+      EnvironmentId:
+        Ref: AppConfigEnvironment
+      ConfigurationProfileId:
+        Ref: AppConfigConfigurationProfile
+      ConfigurationVersion:
+        Fn::GetAtt:
+        - AppConfigHostedConfigurationVersion
+        - VersionNumber
+      DeploymentStrategyId:
+        Ref: AppConfigDeploymentStrategy
+      Description: Deploy the initial hosted configuration
+    Metadata:
+      SamResourceId: AppConfigDeployment
+  AppConfigLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: AppConfigDataAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - appconfig:StartConfigurationSession
+            - appconfig:GetLatestConfiguration
+            - appconfigdata:StartConfigurationSession
+            - appconfigdata:GetLatestConfiguration
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - lambda:GetLayerVersion
+            Resource: '*'
+    Metadata:
+      SamResourceId: AppConfigLambdaExecutionRole
+  Step2LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: Step2DataAndQueryAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:CreateBucket
+            - s3:HeadBucket
+            - s3:ListBucket
+            - s3:GetBucketLocation
+            - s3:PutObject
+            - s3:GetObject
+            Resource:
+            - Fn::Sub: arn:aws:s3:::${DataBucket}
+            - Fn::Sub: arn:aws:s3:::${DataBucket}/*
+          - Effect: Allow
+            Action:
+            - glue:CreateDatabase
+            - glue:GetDatabase
+            - glue:CreateTable
+            - glue:GetTable
+            - glue:GetTables
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - athena:StartQueryExecution
+            - athena:GetQueryExecution
+            - athena:GetQueryResults
+            Resource: '*'
+    Metadata:
+      SamResourceId: Step2LambdaExecutionRole
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: appconfig-demo-data-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+    Metadata:
+      SamResourceId: DataBucket
+  AppConfigReaderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-appconfig-demo-artifacts-812995168799-ap-northeast-1/6650aa57e95caf3c0ffb16e8d5d70ebd
+      Handler: app.app.lambda_handler
+      AutoPublishAlias: live
+      Runtime: python3.11
+      Timeout: 30
+      Role:
+        Fn::GetAtt:
+        - AppConfigLambdaExecutionRole
+        - Arn
+      Environment:
+        Variables:
+          AWS_APPCONFIG_APPLICATION_ID:
+            Ref: AppConfigApplication
+          AWS_APPCONFIG_ENVIRONMENT_ID:
+            Ref: AppConfigEnvironment
+          AWS_APPCONFIG_CONFIGURATION_PROFILE_ID:
+            Ref: AppConfigConfigurationProfile
+          AWS_APPCONFIG_EXTENSION_HTTP_PORT: '2772'
+    Metadata:
+      SamResourceId: AppConfigReaderFunction
+  Step2DataPreparationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-appconfig-demo-artifacts-812995168799-ap-northeast-1/6650aa57e95caf3c0ffb16e8d5d70ebd
+      Handler: app.step2_data_prep.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      Role:
+        Fn::GetAtt:
+        - Step2LambdaExecutionRole
+        - Arn
+      Environment:
+        Variables:
+          S3_BUCKET_NAME:
+            Ref: DataBucket
+          GLUE_DATABASE_NAME: appconfig_demo
+    Metadata:
+      SamResourceId: Step2DataPreparationFunction
+  Step2AthenaQueryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-appconfig-demo-artifacts-812995168799-ap-northeast-1/6650aa57e95caf3c0ffb16e8d5d70ebd
+      Handler: app.step2_athena.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      Role:
+        Fn::GetAtt:
+        - Step2LambdaExecutionRole
+        - Arn
+      Environment:
+        Variables:
+          ATHENA_OUTPUT_S3_URI:
+            Fn::Sub: s3://${DataBucket}/athena-results
+          ATHENA_WORKGROUP: primary
+    Metadata:
+      SamResourceId: Step2AthenaQueryFunction
+  Step3BedrockFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-appconfig-demo-artifacts-812995168799-ap-northeast-1/6650aa57e95caf3c0ffb16e8d5d70ebd
+      Handler: app.step3_bedrock.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      Role:
+        Fn::GetAtt:
+        - AppConfigLambdaExecutionRole
+        - Arn
+      Environment:
+        Variables:
+          AWS_APPCONFIG_APPLICATION_ID:
+            Ref: AppConfigApplication
+          AWS_APPCONFIG_ENVIRONMENT_ID:
+            Ref: AppConfigEnvironment
+          AWS_APPCONFIG_CONFIGURATION_PROFILE_ID:
+            Ref: AppConfigConfigurationProfile
+          AWS_APPCONFIG_EXTENSION_HTTP_PORT: '2772'
+    Metadata:
+      SamResourceId: Step3BedrockFunction
+  Step4BedrockFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-appconfig-demo-artifacts-812995168799-ap-northeast-1/6650aa57e95caf3c0ffb16e8d5d70ebd
+      Handler: run.sh
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 256
+      Role:
+        Fn::GetAtt:
+        - AppConfigLambdaExecutionRole
+        - Arn
+      Environment:
+        Variables:
+          AWS_APPCONFIG_APPLICATION_ID:
+            Ref: AppConfigApplication
+          AWS_APPCONFIG_ENVIRONMENT_ID:
+            Ref: AppConfigEnvironment
+          AWS_APPCONFIG_CONFIGURATION_PROFILE_ID:
+            Ref: AppConfigConfigurationProfile
+          AWS_APPCONFIG_EXTENSION_HTTP_PORT: '2772'
+          BEDROCK_MODEL_ID:
+            Ref: BedrockModelId
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          PORT: 8080
+      Layers:
+      - Fn::Sub: arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:28
+      Events:
+        HttpApi:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+    Metadata:
+      SamResourceId: Step4BedrockFunction
+  Step4FunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      AuthType: NONE
+      TargetFunctionArn:
+        Fn::GetAtt:
+        - Step4BedrockFunction
+        - Arn
+      Cors:
+        AllowOrigins:
+        - '*'
+        AllowMethods:
+        - GET
+        - POST
+        AllowHeaders:
+        - content-type
+    Metadata:
+      SamResourceId: Step4FunctionUrl
+  Step4FunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunctionUrl
+      FunctionName:
+        Fn::GetAtt:
+        - Step4BedrockFunction
+        - Arn
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+    Metadata:
+      SamResourceId: Step4FunctionUrlPermission
+Outputs:
+  AppConfigReaderFunctionName:
+    Value:
+      Ref: AppConfigReaderFunction
+  AppConfigApplicationId:
+    Value:
+      Ref: AppConfigApplication
+  AppConfigEnvironmentId:
+    Value:
+      Ref: AppConfigEnvironment
+  AppConfigConfigurationProfileId:
+    Value:
+      Ref: AppConfigConfigurationProfile
+  DataBucketName:
+    Value:
+      Ref: DataBucket
+  Step2DataPreparationFunctionName:
+    Value:
+      Ref: Step2DataPreparationFunction
+  Step2AthenaQueryFunctionName:
+    Value:
+      Ref: Step2AthenaQueryFunction
+  Step3BedrockFunctionName:
+    Value:
+      Ref: Step3BedrockFunction
+  Step4BedrockFunctionName:
+    Value:
+      Ref: Step4BedrockFunction
+  Step4FunctionUrl:
+    Value:
+      Fn::GetAtt:
+      - Step4FunctionUrl
+      - FunctionUrl

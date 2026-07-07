@@ -1,6 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Step 1, Step 2, and Step 3 - AWS AppConfig, S3, Glue, Athena, and Bedrock-style Lambda demo
+Description: Step 1, Step 2, Step 3, and Step 4 - AWS AppConfig, S3, Glue, Athena, and Bedrock-style Lambda demo
+
+Parameters:
+  BedrockModelId:
+    Type: String
+    Default: anthropic.claude-3-haiku-20240307-v1:0
+    Description: Bedrock model identifier used by Step4
 
 Resources:
   AppConfigApplication:
@@ -98,6 +104,10 @@ Resources:
                   - appconfig:GetLatestConfiguration
                   - appconfigdata:StartConfigurationSession
                   - appconfigdata:GetLatestConfiguration
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - lambda:GetLayerVersion
                 Resource: '*'
 
   Step2LambdaExecutionRole:
@@ -214,6 +224,55 @@ Resources:
           AWS_APPCONFIG_CONFIGURATION_PROFILE_ID: !Ref AppConfigConfigurationProfile
           AWS_APPCONFIG_EXTENSION_HTTP_PORT: "2772"
 
+  Step4BedrockFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: run.sh
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt AppConfigLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          AWS_APPCONFIG_APPLICATION_ID: !Ref AppConfigApplication
+          AWS_APPCONFIG_ENVIRONMENT_ID: !Ref AppConfigEnvironment
+          AWS_APPCONFIG_CONFIGURATION_PROFILE_ID: !Ref AppConfigConfigurationProfile
+          AWS_APPCONFIG_EXTENSION_HTTP_PORT: "2772"
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          PORT: 8080
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:28
+      Events:
+        HttpApi:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+
+  Step4FunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      AuthType: NONE
+      TargetFunctionArn: !GetAtt Step4BedrockFunction.Arn
+      Cors:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+        AllowHeaders:
+          - content-type
+
+  Step4FunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunctionUrl
+      FunctionName: !GetAtt Step4BedrockFunction.Arn
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
 Outputs:
   AppConfigReaderFunctionName:
     Value: !Ref AppConfigReaderFunction
@@ -231,3 +290,7 @@ Outputs:
     Value: !Ref Step2AthenaQueryFunction
   Step3BedrockFunctionName:
     Value: !Ref Step3BedrockFunction
+  Step4BedrockFunctionName:
+    Value: !Ref Step4BedrockFunction
+  Step4FunctionUrl:
+    Value: !GetAtt Step4FunctionUrl.FunctionUrl

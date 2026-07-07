@@ -10,7 +10,7 @@
 - IaC: CloudFormation
 - AWS Lambda Exetension: AppConfig Extension
 - パッケージ管理: uv
-- フレームワーク: FastAPI
+- フレームワーク: FastAPI,AWS Lambda Web Adapter
 - API仕様: OpenAPI3.0
 
 ## スキーマ
@@ -199,6 +199,7 @@ make deploy
 - AppConfigEnvironmentId
 - AppConfigConfigurationProfileId
 - AppConfigReaderFunctionName
+- Step4FunctionUrl
 
 Lambda 関数を実行すると、AppConfig の設定が返ることを確認できます。
 
@@ -209,6 +210,16 @@ aws lambda invoke \
   /tmp/appconfig-response.json
 cat /tmp/appconfig-response.json
 ```
+
+Step4 の FastAPI ルートは Function URL から直接呼び出せます。URL 末尾のスラッシュは付けずに、次のように送信してください。
+
+```bash
+curl -X POST "<Step4FunctionUrl>/bedrock_summarize" \
+  -H 'content-type: application/json' \
+  -d '{"text":"This is a short test sentence for the Lambda adapter route.","model_id":"anthropic.claude-3-haiku-20240307-v1:0"}'
+```
+
+成功すると、`summary` を含む JSON が返ります。
 
 ## ハンズオンの続き（Step1の内容を踏まえた流れ）
 

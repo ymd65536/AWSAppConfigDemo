@@ -4,7 +4,6 @@ from typing import Any, Dict, Optional
 
 import boto3
 from fastapi import FastAPI
-from mangum import Mangum
 
 from app.step4_bedrock import build_detail_payload, summarize_text
 
@@ -15,7 +14,7 @@ def _get_configuration_from_appconfig_data_api() -> Optional[Dict[str, Any]]:
     application_id = os.getenv("AWS_APPCONFIG_APPLICATION_ID")
     environment_id = os.getenv("AWS_APPCONFIG_ENVIRONMENT_ID")
     configuration_profile_id = os.getenv("AWS_APPCONFIG_CONFIGURATION_PROFILE_ID")
-    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "ap-northeast-1"
+    region = os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "ap-northeast-1"
 
     if not all([application_id, environment_id, configuration_profile_id]):
         return None
@@ -59,8 +58,18 @@ async def detail() -> Dict[str, Any]:
     return build_detail_payload(configuration)
 
 
-handler = Mangum(app, lifespan="off")
+def run_server() -> None:
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8080)
+
+
+if __name__ == "__main__":
+    run_server()
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    return handler(event, context)
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"message": "This function is intended to run behind AWS Lambda Web Adapter"}),
+    }

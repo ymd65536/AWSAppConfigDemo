@@ -14,7 +14,7 @@ def _get_configuration_from_appconfig_data_api() -> Optional[Dict[str, Any]]:
     application_id = os.getenv("AWS_APPCONFIG_APPLICATION_ID")
     environment_id = os.getenv("AWS_APPCONFIG_ENVIRONMENT_ID")
     configuration_profile_id = os.getenv("AWS_APPCONFIG_CONFIGURATION_PROFILE_ID")
-    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "ap-northeast-1"
+    region = os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "ap-northeast-1"
 
     if not all([application_id, environment_id, configuration_profile_id]):
         return None

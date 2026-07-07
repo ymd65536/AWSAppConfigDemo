@@ -259,6 +259,59 @@ cat /tmp/appconfig-response.json
 
 ### 5. 次のステップ
 
+## Step2: データ分析基盤を作る
+
+Step2 では、サンプルデータを S3 に配置し、Glue Data Catalog に登録したうえで、Athena を Lambda から実行できる構成を作ります。ここでは「最小構成で動かす」ことを意識して、必要最低限の IAM 権限だけを付与します。
+
+### 1. まずは Step1 のデプロイ結果を前提にする
+
+Step2 を試す前に、Step1 で作った AppConfig / Lambda のスタックが AWS 上にデプロイされていることを確認してください。
+
+```bash
+make deploy
+```
+
+### 2. サンプルデータを作成して S3 にアップロードする
+
+Step2 用の Lambda を実行すると、ダミーの CSV ファイルを S3 バケットへ配置し、Glue のテーブル定義も作成します。
+
+```bash
+aws lambda invoke \
+  --function-name <Step2DataPreparationFunctionName> \
+  --payload '{}' \
+  /tmp/step2-data.json
+cat /tmp/step2-data.json
+```
+
+### 3. S3 と Glue の登録結果を確認する
+
+アップロードされたファイルと Glue のテーブルが作成されているか確認します。
+
+```bash
+aws s3 ls s3://<DataBucketName>/raw/
+aws glue get-tables --database-name appconfig_demo --query 'TableList[].Name' --output table
+```
+
+### 4. Athena からクエリを実行する
+
+別の Lambda から Athena の API を呼び出し、登録済みデータに対してクエリを実行します。
+
+```bash
+aws lambda invoke \
+  --function-name <Step2AthenaQueryFunctionName> \
+  --payload '{"table_name":"customers"}' \
+  /tmp/step2-athena.json --cli-binary-format raw-in-base64-out
+cat /tmp/step2-athena.json
+```
+
+### 5. ここで学ぶポイント
+
+- S3 にアップロードしたデータを Glue Data Catalog に登録すると、Athena から SQL で扱える
+- Athena の実行は別 Lambda から行うことで、データ基盤とアプリケーションロジックを分離できる
+- IAM は「S3 への読み書き」「Glue へのテーブル作成」「Athena の実行」だけに絞ることで、最小構成にできる
+
+この流れを押さえておくと、次に Step3 でデータ分析エージェントを追加しやすくなります。
+
 Step1 が完了したら、次は以下を進める構成が自然です。
 
 - Step2: Glue DataCatalog / Athena / S3 を使ったデータ分析基盤を構築する

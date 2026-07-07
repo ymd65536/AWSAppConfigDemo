@@ -203,28 +203,6 @@ aws lambda invoke \
 cat /tmp/appconfig-response.json
 ```
 
-実行結果の例として、以下のような JSON が返れば成功です。
-
-```json
-{
-  "statusCode": 200,
-  "body": {
-    "message": "Configuration retrieved successfully",
-    "configuration": {
-      "message": "Hello from AWS AppConfig",
-      "feature_enabled": true,
-      "source": "appconfig"
-    }
-  }
-}
-```
-
-もし `source: "fallback"` となっている場合は、AppConfig の設定がデプロイされていないか、Lambda の実行ロールに必要な権限が付与されていない可能性があります。その場合は、CloudFormation の出力値や Lambda の実行ログを確認してください。
-
-```bash
-aws logs tail /aws/lambda/<AppConfigReaderFunctionName> --since 15m
-```
-
 ## ハンズオンの続き（Step1の内容を踏まえた流れ）
 
 このサンプルでは、まず Step1 として AWS AppConfig で管理した設定を Lambda から取得する構成を実装しました。ここまでの内容を前提に、ハンズオンを続ける場合は次の流れで進めると分かりやすいです。

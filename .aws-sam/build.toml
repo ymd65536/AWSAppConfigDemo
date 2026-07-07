@@ -7,6 +7,6 @@ architecture = "x86_64"
 handler = "app.app.lambda_handler"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["AppConfigReaderFunction"]
+functions = ["AppConfigReaderFunction", "Step2DataPreparationFunction", "Step2AthenaQueryFunction"]
 
 [layer_build_definitions]

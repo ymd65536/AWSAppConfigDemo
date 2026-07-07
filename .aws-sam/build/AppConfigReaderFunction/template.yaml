@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Step 1 - AWS AppConfig and Lambda integration demo
+Description: Step 1 and Step 2 - AWS AppConfig, S3, Glue, and Athena demo
 
 Resources:
   AppConfigApplication:
@@ -58,7 +58,7 @@ Resources:
       DeploymentStrategyId: !Ref AppConfigDeploymentStrategy
       Description: Deploy the initial hosted configuration
 
-  LambdaExecutionRole:
+  AppConfigLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -83,6 +83,63 @@ Resources:
                   - appconfigdata:GetLatestConfiguration
                 Resource: '*'
 
+  Step2LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: Step2DataAndQueryAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:HeadBucket
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource:
+                  - !Sub arn:aws:s3:::${DataBucket}
+                  - !Sub arn:aws:s3:::${DataBucket}/*
+              - Effect: Allow
+                Action:
+                  - glue:CreateDatabase
+                  - glue:GetDatabase
+                  - glue:CreateTable
+                  - glue:GetTable
+                  - glue:GetTables
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - athena:StartQueryExecution
+                  - athena:GetQueryExecution
+                  - athena:GetQueryResults
+                Resource: '*'
+
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub appconfig-demo-data-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
   AppConfigReaderFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -91,13 +148,39 @@ Resources:
       AutoPublishAlias: live
       Runtime: python3.11
       Timeout: 30
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt AppConfigLambdaExecutionRole.Arn
       Environment:
         Variables:
           AWS_APPCONFIG_APPLICATION_ID: !Ref AppConfigApplication
           AWS_APPCONFIG_ENVIRONMENT_ID: !Ref AppConfigEnvironment
           AWS_APPCONFIG_CONFIGURATION_PROFILE_ID: !Ref AppConfigConfigurationProfile
           AWS_APPCONFIG_EXTENSION_HTTP_PORT: "2772"
+
+  Step2DataPreparationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.step2_data_prep.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      Role: !GetAtt Step2LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref DataBucket
+          GLUE_DATABASE_NAME: appconfig_demo
+
+  Step2AthenaQueryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.step2_athena.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      Role: !GetAtt Step2LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          ATHENA_OUTPUT_S3_URI: !Sub s3://${DataBucket}/athena-results
+          ATHENA_WORKGROUP: primary
 
 Outputs:
   AppConfigReaderFunctionName:
@@ -108,3 +191,9 @@ Outputs:
     Value: !Ref AppConfigEnvironment
   AppConfigConfigurationProfileId:
     Value: !Ref AppConfigConfigurationProfile
+  DataBucketName:
+    Value: !Ref DataBucket
+  Step2DataPreparationFunctionName:
+    Value: !Ref Step2DataPreparationFunction
+  Step2AthenaQueryFunctionName:
+    Value: !Ref Step2AthenaQueryFunction

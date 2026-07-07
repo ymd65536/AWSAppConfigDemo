@@ -9,6 +9,9 @@
 - ビルドサービス: AWS CodeBuild
 - IaC: CloudFormation
 - AWS Lambda Exetension: AppConfig Extension
+- パッケージ管理: uv
+- フレームワーク: FastAPI
+- API仕様: OpenAPI3.0
 
 ## スキーマ
 

@@ -95,6 +95,7 @@ Step3では、データ分析エージェントを作ります。データ分析
 - Amazon Athena
 - Amazon S3
 - Amazon Bedrock
+  - AgentCore
 
 このステップのゴールはAWS AppConfigを使ってデータ分析エージェントの設定を管理できることを確認することです。
 
@@ -109,6 +110,7 @@ Step3では、データ分析エージェントを作ります。データ分析
 - Amazon Athena
 - Amazon S3
 - Amazon Bedrock
+  - AgentCore
 
 ## ブログ
 

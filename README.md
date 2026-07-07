@@ -321,22 +321,71 @@ Step2のハンズオンでは、AppConfig を使って設定を外だしし、La
 
 この流れを押さえておくと、次に Step3 でデータ分析エージェントを追加しやすくなります。
 
-## Step3: Bedrock 用 Lambda を作る
+## Step3: Bedrock 風 Lambda を作る
 
-Step3 では、Step2 で作成した Lambda の処理を別名で複製したうえで、その情報を Bedrock 用 Lambda へ渡して要約・検索可能な形に整えます。ここではまず、FastAPI ベースの Lambda を追加して、次のエンドポイントを用意します。
+Step3 では、Step2 で作成したデータ基盤を使って、FastAPI ベースの Lambda を追加し、/summarize と /detail の 2 つのエンドポイントから要約結果と検索可能なデータを返す構成を作ります。現時点では、Bedrock SDK そのものではなく、Bedrock 風の API 入口として動作する Lambda です。
 
 - /summarize
   - リクエストボディに `text` を渡すと、要約結果を返します。
 - /detail
   - AppConfig から README に書かれたスキーマを取り出し、検索可能なデータ一覧として返します。
 
-実装イメージは次のとおりです。
+### 1. 実装する内容
+
+- app/step3_bedrock.py: FastAPI のルーティングと AppConfig からの設定取得
+- template.yaml: Step3 用 Lambda と IAM / 環境変数の定義
+- AppConfig の設定値: README のスキーマ形式を JSON 配列または `{ "searchable_data": [...] }` 形式で保持
+
+### 2. 前提条件
+
+- Step1 / Step2 のデプロイが完了していること
+- AWS CLI と SAM CLI が使えること
+- AWS AppConfig の設定プロファイルに、期待するスキーマ構造が登録されていること
+
+### 3. ローカルでテストする
+
+```bash
+python3 -m pytest -q tests/test_step3.py
+```
+
+### 4. AWS へデプロイする
+
+```bash
+make deploy
+```
+
+### 5. デプロイ後に関数名を確認する
+
+```bash
+aws cloudformation describe-stacks \
+  --stack-name "${STACK_NAME:-aws-appconfig-demo}" \
+  --query "Stacks[0].Outputs[?OutputKey=='Step3BedrockFunctionName'].OutputValue" \
+  --output text
+```
+
+### 6. AppConfig の内容を確認する
+
+AppConfig の設定が空、または期待するスキーマ形式でない場合は、設定値を更新します。期待する形式は次のような JSON です。
+
+```json
+[
+  {
+    "model_id": "sales_performance",
+    "target_table": "sales_summary",
+    "sample_queries": ["先月の店舗ごとの売上を教えて"],
+    "description": "店舗別の売上を分析するモデル"
+  }
+]
+```
+
+### 7. Step3 用 Lambda を実行する
 
 ```bash
 aws lambda invoke \
   --function-name <Step3BedrockFunctionName> \
   --payload '{"path":"/summarize","httpMethod":"POST","body":"{\"text\":\"Sales data includes customers and orders.\"}"}' \
   /tmp/step3-summarize.json
+cat /tmp/step3-summarize.json
 ```
 
 ```bash
@@ -344,12 +393,19 @@ aws lambda invoke \
   --function-name <Step3BedrockFunctionName> \
   --payload '{"path":"/detail","httpMethod":"GET"}' \
   /tmp/step3-detail.json
+cat /tmp/step3-detail.json
 ```
+
+### 8. ここで学ぶポイント
+
+- AppConfig でエージェントの検索対象スキーマを動的に切り替えられる
+- Lambda の HTTP 風ルートで簡易的な API を作れる
+- /detail では、AppConfig の内容をそのまま検索可能なデータとして返す
 
 目次
 - Step1: AWS AppConfigとLambdaの連携
 - Step2: Glue DataCatalog / Athena / S3 を使ったデータ分析基盤を構築する
-- Step3: Bedrock や AgentCore を使ってデータ分析エージェントを作る
+- Step3: Bedrock 風 Lambda を作る
 - Step4: フロントエンド画面からエージェントを操作できるようにする
 
 ## まとめ

@@ -406,7 +406,11 @@ cat /tmp/step3-detail.json
 - Step1: AWS AppConfigとLambdaの連携
 - Step2: Glue DataCatalog / Athena / S3 を使ったデータ分析基盤を構築する
 - Step3: Bedrock 風 Lambda を作る
-- Step4: フロントエンド画面からエージェントを操作できるようにする
+- Step4: BedrockとLambdaを連携させる
+  - /bedrock_summarize, /bedrock_detailの2つのエンドポイントを作って実行確認
+  - bedrock runtimeをで実行する
+- Step5: データ分析エージェントを作る
+- Step6: フロントエンド画面からエージェントを操作できるようにする
 
 ## まとめ
 
